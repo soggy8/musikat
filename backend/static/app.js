@@ -511,11 +511,27 @@ async function downloadTrack(track, selectedVideoId = null) {
                     selectedVideoId = data.candidates[0].video_id;
                 }
             } else {
-                console.error('Candidates fetch failed:', candidatesResponse.status);
+                // If candidates endpoint failed, try to get error message
+                let errorMsg = 'Failed to search YouTube';
+                try {
+                    const errorData = await candidatesResponse.json();
+                    errorMsg = errorData.detail || errorMsg;
+                } catch (e) {
+                    // If we can't parse error, use default message
+                }
+                
+                console.error('Candidates fetch failed:', candidatesResponse.status, errorMsg);
+                
+                // Show error to user and don't proceed with download
+                showError(`Cannot search YouTube: ${errorMsg}. This may be due to YouTube blocking requests (403). Please configure YouTube cookies (see documentation) or try again later.`);
+                updateDownloadButton(trackId, false);
+                return;
             }
         } catch (err) {
             console.error('Candidate check failed:', err);
-            // Continue without video_id - backend will search
+            showError(`Failed to check YouTube candidates: ${err.message}. Please try again or configure YouTube cookies.`);
+            updateDownloadButton(trackId, false);
+            return;
         }
     }
     

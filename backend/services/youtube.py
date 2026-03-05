@@ -235,6 +235,7 @@ class YouTubeService:
     def search_candidates(self, track_name: str, artist: str, track_info: Dict = None, num_results: int = 5) -> Dict:
         """Search YouTube and return top candidates with confidence scores."""
         candidates = []
+        yt_dlp_blocked = False  # Track if yt-dlp was blocked
 
         # Try YTMusic first
         if self.ytmusic:
@@ -348,7 +349,14 @@ class YouTubeService:
                                 'source': 'yt-dlp'
                             })
             except Exception as e:
-                print(f"yt-dlp search failed: {e}")
+                error_msg = str(e)
+                # Log the error but don't fail completely - we might have YTMusic candidates
+                if '403' in error_msg or 'Forbidden' in error_msg:
+                    print(f"yt-dlp search blocked by YouTube (403). Using YTMusic results only: {e}")
+                    yt_dlp_blocked = True
+                else:
+                    print(f"yt-dlp search failed: {e}")
+                # Continue with whatever candidates we have (from YTMusic if available)
 
         # Sort by score descending
         candidates.sort(key=lambda x: x['score'], reverse=True)
@@ -356,21 +364,27 @@ class YouTubeService:
         if not candidates:
             return {
                 'success': False,
-                'error': "No results found on YouTube or YouTube Music",
+                'error': "No results found on YouTube or YouTube Music. YouTube may be blocking requests (403). Try using YouTube cookies (see documentation).",
                 'candidates': [],
                 'needs_confirmation': False
             }
 
         best_score = candidates[0]['score']
+        # Only show confirmation if confidence is really low
+        # Disable aggressive confirmation for now - let it work normally
         needs_confirmation = best_score < CONFIDENCE_THRESHOLD
         
-        return {
+        result = {
             'success': True,
             'candidates': candidates[:3],
             'best_score': best_score,
             'needs_confirmation': needs_confirmation,
             'threshold': CONFIDENCE_THRESHOLD
         }
+        # Add warning if yt-dlp was blocked
+        if yt_dlp_blocked:
+            result['warning'] = 'YouTube blocked some requests (403). Consider configuring YouTube cookies for better reliability.'
+        return result
     
     def download_by_video_id(self, video_id: str, output_path: str, output_format: str = None, audio_quality: str = None) -> Dict:
         """Download a specific YouTube video by ID"""
@@ -385,13 +399,16 @@ class YouTubeService:
         wants_m4a_passthrough = (self.output_format or '').lower() == 'm4a'
 
         ydl_opts = {
-            'format': 'bestaudio[ext=m4a]/bestaudio/best[height<=720]/best',
+            # Avoid HLS (m3u8) formats that get blocked - prefer direct audio formats
+            # Format priority: m4a direct > opus/webm direct > bestaudio (non-HLS) > fallback
+            'format': 'bestaudio[ext=m4a][protocol!=m3u8]/bestaudio[ext=webm][protocol!=m3u8]/bestaudio[ext=opus][protocol!=m3u8]/bestaudio[protocol!=m3u8]/best[ext=m4a][protocol!=m3u8]/best[ext=webm][protocol!=m3u8]/best[height<=720][protocol!=m3u8]/best',
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            # 'extractor_args': {
-            #     'youtube': {
-            #         'player_client': ['android', 'web', 'ios'],
-            #     }
-            # },
+            # Try different YouTube clients as fallback (helps with 403 errors)
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android', 'web', 'ios'],
+                }
+            },
             'retries': 10,
             'fragment_retries': 10,
             'file_access_retries': 3,
@@ -491,10 +508,10 @@ class YouTubeService:
             search_result = self.search_candidates(track_name, artist, track_info, num_results=3)
             if search_result.get('success') and search_result.get('candidates'):
                 best_candidate = search_result['candidates'][0]
-                # If we have a high confidence match, use it directly
+                # Auto-select if we have high confidence match
                 if best_candidate['score'] >= CONFIDENCE_THRESHOLD:
                     print(f"Auto-selected best candidate for download: '{best_candidate['title']}' (Score: {best_candidate['score']}, Source: {best_candidate.get('source')})")
-                    return self.download_by_video_id(best_candidate['video_id'], output_path)
+                    return self.download_by_video_id(best_candidate['video_id'], output_path, output_format, audio_quality)
         except Exception as e:
             print(f"Pre-download search failed: {e}")
 
@@ -515,15 +532,16 @@ class YouTubeService:
         wants_m4a_passthrough = (output_format or '').lower() == 'm4a'
 
         ydl_opts = {
-            'format': 'bestaudio[ext=m4a]/bestaudio/best[height<=720]/best',
+            # Avoid HLS (m3u8) formats that get blocked - prefer direct audio formats
+            'format': 'bestaudio[ext=m4a][protocol!=m3u8]/bestaudio[ext=webm][protocol!=m3u8]/bestaudio[ext=opus][protocol!=m3u8]/bestaudio[protocol!=m3u8]/best[ext=m4a][protocol!=m3u8]/best[ext=webm][protocol!=m3u8]/best[height<=720][protocol!=m3u8]/best',
             # Robust user agent to avoid 403 errors
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             # Try different YouTube clients as fallback (helps with 403 errors)
-            # 'extractor_args': {
-            #     'youtube': {
-            #         'player_client': ['android', 'web', 'ios'],  # Try multiple clients
-            #     }
-            # },
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android', 'web', 'ios'],  # Try multiple clients
+                }
+            },
             # Retry configuration for network issues and 403 errors
             'retries': 10,
             'fragment_retries': 10,
