@@ -3,6 +3,7 @@ from spotipy.oauth2 import SpotifyClientCredentials
 from typing import List, Dict, Optional
 import sys
 import os
+import time
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 
@@ -10,17 +11,46 @@ class SpotifyService:
     def __init__(self):
         if not config.SPOTIFY_CLIENT_ID or not config.SPOTIFY_CLIENT_SECRET:
             raise ValueError("Spotify credentials not configured. Set SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET")
-        
+        self._init_client()
+
+    def _init_client(self):
+        """Initialize or reinitialize the Spotify client (used on startup and after stale connections)."""
         client_credentials_manager = SpotifyClientCredentials(
             client_id=config.SPOTIFY_CLIENT_ID,
-            client_secret=config.SPOTIFY_CLIENT_SECRET
+            client_secret=config.SPOTIFY_CLIENT_SECRET,
+            requests_timeout=15,
         )
-        self.client = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
-    
-    def search_tracks(self, query: str, limit: int = 20) -> List[Dict]:
+        self.client = spotipy.Spotify(
+            client_credentials_manager=client_credentials_manager,
+            requests_timeout=15,
+            retries=3,
+        )
+
+    def _call(self, func, *args, **kwargs):
+        """Call a Spotify API function, reinitializing the client on connection/timeout errors."""
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            msg = str(e).lower()
+            if not any(k in msg for k in ('timeout', 'timed out', 'connection', 'remotedisconnected', 'broken pipe')):
+                raise
+            print(f"Spotify connection error, reinitializing client: {e}")
+            self._init_client()
+            for attempt in range(3):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as retry_e:
+                    retry_msg = str(retry_e).lower()
+                    if attempt < 2 and any(k in retry_msg for k in ('timeout', 'timed out', 'connection')):
+                        print(f"Retry {attempt + 1} failed, waiting before next attempt: {retry_e}")
+                        time.sleep(2 ** attempt)
+                        continue
+                    raise
+
+    def search_tracks(self, query: str, limit: int = 10) -> List[Dict]:
         """Search for tracks on Spotify"""
         try:
-            results = self.client.search(q=query, type='track', limit=limit)
+            results = self._call(self.client.search, q=query, type='track', limit=limit, market='MX')
             tracks = []
             
             for item in results['tracks']['items']:
@@ -48,7 +78,7 @@ class SpotifyService:
     def get_track_details(self, track_id: str) -> Optional[Dict]:
         """Get detailed information about a specific track"""
         try:
-            track = self.client.track(track_id)
+            track = self._call(self.client.track, track_id)
             return {
                 'id': track['id'],
                 'name': track['name'],
@@ -70,10 +100,10 @@ class SpotifyService:
             print(f"Error fetching track details: {e}")
             return None
     
-    def search_albums(self, query: str, limit: int = 20) -> List[Dict]:
+    def search_albums(self, query: str, limit: int = 10) -> List[Dict]:
         """Search for albums on Spotify"""
         try:
-            results = self.client.search(q=query, type='album', limit=limit)
+            results = self._call(self.client.search, q=query, type='album', limit=limit, market='MX')
             albums = []
             
             for item in results['albums']['items']:
@@ -97,7 +127,7 @@ class SpotifyService:
     def get_album_details(self, album_id: str) -> Optional[Dict]:
         """Get detailed information about an album including all tracks"""
         try:
-            album = self.client.album(album_id)
+            album = self._call(self.client.album, album_id)
             
             # Get all tracks from the album (handle pagination for albums with >50 tracks)
             tracks = []
