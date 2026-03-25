@@ -101,7 +101,7 @@ class NavidromeService:
                 'u': self.username,
                 'p': self.password,
                 'v': '1.16.1',
-                'c': 'musicDownloader',
+                'c': 'musikat',
                 'f': 'json'
             }
             

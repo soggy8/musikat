@@ -1,3 +1,37 @@
+const METADATA_PROVIDER_STORAGE = 'musikat_metadata_provider';
+
+function getMetadataProvider() {
+    const el = document.getElementById('metadataProvider');
+    return el && el.value ? el.value : 'deezer';
+}
+
+async function initMetadataProvider() {
+    const el = document.getElementById('metadataProvider');
+    if (!el) {
+        setTimeout(initMetadataProvider, 100);
+        return;
+    }
+    try {
+        const r = await fetch('api/metadata/providers');
+        if (!r.ok) return;
+        const data = await r.json();
+        const saved = localStorage.getItem(METADATA_PROVIDER_STORAGE);
+        const def = data.default || 'deezer';
+        el.innerHTML = (data.providers || []).map((p) => {
+            const disabled = p.id === 'spotify' && !p.configured;
+            const label = p.label || p.id;
+            return `<option value="${p.id}" ${disabled ? 'disabled' : ''}>${escapeHtml(label)}${disabled ? ' (not configured)' : ''}</option>`;
+        }).join('');
+        const pick = saved && [...el.options].some((o) => o.value === saved && !o.disabled) ? saved : def;
+        el.value = [...el.options].some((o) => o.value === pick && !o.disabled) ? pick : 'deezer';
+        el.addEventListener('change', () => {
+            localStorage.setItem(METADATA_PROVIDER_STORAGE, el.value);
+        });
+    } catch (e) {
+        console.warn('metadata providers:', e);
+    }
+}
+
 // DOM elements
 const searchInput = document.getElementById('searchInput');
 const searchBtn = document.getElementById('searchBtn');
@@ -96,11 +130,14 @@ function updateQualityOptions(selectedFormat) {
 
 // Initialize on page load (wait for DOM to be ready)
 function initializeFormatOptions() {
+    const run = () => {
+        loadFormatOptions();
+        initMetadataProvider();
+    };
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', loadFormatOptions);
+        document.addEventListener('DOMContentLoaded', run);
     } else {
-        // DOM is already ready, but wait a bit to ensure elements exist
-        setTimeout(loadFormatOptions, 50);
+        setTimeout(run, 50);
     }
 }
 
@@ -185,7 +222,7 @@ async function searchTracks(query) {
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ query, limit: 20 }),
+        body: JSON.stringify({ query, limit: 20, provider: getMetadataProvider() }),
     });
     
     if (!response.ok) {
@@ -219,7 +256,7 @@ async function reverseLookupYouTube(url) {
     const response = await fetch(`api/reverse/youtube`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url })
+        body: JSON.stringify({ url, provider: getMetadataProvider() })
     });
 
     if (!response.ok) {
@@ -267,13 +304,13 @@ function showReverseResults(data) {
         <div><strong>YouTube title:</strong> ${ytTitle}</div>
         <div><strong>Channel:</strong> ${ytUploader}</div>
         <div><strong>URL:</strong> <a href="${ytUrl}" target="_blank" rel="noopener noreferrer">${escapeHtml(ytUrl)}</a></div>
-        <div><strong>Spotify search query:</strong> ${escapeHtml(data?.query || '')}</div>
+        <div><strong>Search query:</strong> ${escapeHtml(data?.query || '')}</div>
         ${ytThumb ? `<div style="margin-top:10px;"><img src="${ytThumb}" alt="thumbnail" style="max-width:180px;border-radius:10px;border:1px solid var(--border-color);"/></div>` : ''}
     `;
 
     const candidates = data?.spotify_candidates || [];
     if (!candidates.length) {
-        spList.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">No Spotify matches found. Use manual metadata.</p>';
+        spList.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">No matches found. Use manual metadata.</p>';
     } else {
         spList.innerHTML = candidates.map(track => `
             <div class="track-card">
@@ -296,7 +333,7 @@ function showReverseResults(data) {
                 reverseState.manualMetadata = null;
                 manualForm?.classList.add('hidden');
                 finalize?.classList.remove('hidden');
-                if (selectedLabel) selectedLabel.textContent = `Selected Spotify track: ${trackId}`;
+                if (selectedLabel) selectedLabel.textContent = `Selected track: ${trackId}`;
             });
         });
     }
@@ -349,7 +386,7 @@ async function startReverseDownload() {
 
     // Ensure one source of metadata
     if (!reverseState.selectedSpotifyTrackId && !reverseState.manualMetadata) {
-        showError('Select a Spotify track or use manual metadata first');
+        showError('Select a track or use manual metadata first');
         return;
     }
 
@@ -358,6 +395,7 @@ async function startReverseDownload() {
         location: downloadLocation,
         spotify_track_id: reverseState.selectedSpotifyTrackId,
         metadata: reverseState.manualMetadata,
+        provider: getMetadataProvider(),
     };
 
     // Mark as downloading using synthetic id returned by API
@@ -400,7 +438,7 @@ async function searchAlbums(query) {
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ query, limit: 20 }),
+        body: JSON.stringify({ query, limit: 20, provider: getMetadataProvider() }),
     });
     
     if (!response.ok) {
@@ -425,7 +463,7 @@ async function displayTracks(tracks) {
     const downloadedTracks = new Set();
     const checkPromises = tracks.map(async (track) => {
         try {
-            const response = await fetch(`api/track/${track.id}/exists`);
+            const response = await fetch(`api/track/${encodeURIComponent(track.id)}/exists?provider=${encodeURIComponent(getMetadataProvider())}`);
             if (response.ok) {
                 const data = await response.json();
                 if (data.exists) {
@@ -491,7 +529,7 @@ async function downloadTrack(track, selectedVideoId = null) {
         try {
             updateDownloadButton(trackId, true);
             console.log('Fetching YouTube candidates for:', trackId);
-            const candidatesResponse = await fetch(`api/youtube/candidates/${trackId}`);
+            const candidatesResponse = await fetch(`api/youtube/candidates/${encodeURIComponent(trackId)}?provider=${encodeURIComponent(getMetadataProvider())}`);
             
             if (candidatesResponse.ok) {
                 const data = await candidatesResponse.json();
@@ -559,9 +597,10 @@ async function downloadTrack(track, selectedVideoId = null) {
             body: JSON.stringify({ 
                 track_id: trackId,
                 location: downloadLocation,
-                video_id: selectedVideoId,  // Pass selected video ID if any
-                format: format,  // User-selected format
-                quality: quality  // User-selected quality
+                video_id: selectedVideoId,
+                format: format,
+                quality: quality,
+                provider: getMetadataProvider(),
             }),
         });
         
@@ -964,7 +1003,7 @@ let currentAlbum = null;
 
 async function showAlbumDetails(albumId) {
     try {
-        const response = await fetch(`api/album/${albumId}`);
+        const response = await fetch(`api/album/${encodeURIComponent(albumId)}?provider=${encodeURIComponent(getMetadataProvider())}`);
         if (!response.ok) throw new Error('Failed to fetch album');
         
         const album = await response.json();
@@ -1029,7 +1068,8 @@ async function downloadAlbum() {
                 album_id: currentAlbum.id,
                 location: downloadLocation,
                 format: format,
-                quality: quality
+                quality: quality,
+                provider: getMetadataProvider(),
             })
         });
         

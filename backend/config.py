@@ -4,7 +4,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Spotify API Configuration
+# Metadata provider: "deezer" (default, no API key) or "spotify" (requires credentials)
+_raw_provider = os.getenv("DEFAULT_METADATA_PROVIDER", "deezer").lower().strip()
+DEFAULT_METADATA_PROVIDER = _raw_provider if _raw_provider in ("deezer", "spotify") else "deezer"
+
+# Spotify API (optional — only needed when using provider "spotify")
 SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID", "")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET", "")
 SPOTIFY_REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URI", "http://localhost:8000/callback")

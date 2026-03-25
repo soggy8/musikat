@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Music Downloader - Add Songs to Navidrome</title>
+    <title>Musikat - Add Songs to Navidrome</title>
     <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
     <base href="{{ request.scope.get('root_path', '') }}/">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>🎵 Music Downloader</h1>
+            <h1>🎵 Musikat</h1>
             <p class="subtitle">Search and add songs to your Navidrome server</p>
         </header>
 
@@ -28,6 +28,13 @@
                 <div class="search-type-toggle">
                     <button id="searchTracks" class="toggle-btn active">Tracks</button>
                     <button id="searchAlbums" class="toggle-btn">Albums</button>
+                </div>
+                <div class="download-option metadata-provider-row">
+                    <label for="metadataProvider">Catalog:</label>
+                    <select id="metadataProvider" class="download-select" title="Where to search for track metadata">
+                        <option value="deezer">Deezer (no API key)</option>
+                        <option value="spotify">Spotify (requires credentials)</option>
+                    </select>
                 </div>
                 <div class="download-options">
                     <div class="download-option">
@@ -72,7 +79,7 @@
         </div>
 
         <div id="reverseResults" class="results hidden">
-            <h2>YouTube → Spotify (Reverse Search)</h2>
+            <h2>YouTube → Metadata (Reverse Search)</h2>
             <div id="reverseYouTubeInfo" class="reverse-yt-info"></div>
             <div id="reverseSpotifyList" class="tracks-list"></div>
             <div class="reverse-actions">

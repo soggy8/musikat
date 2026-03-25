@@ -1,8 +1,8 @@
-# 🎵 Music Downloader - For Navidrome and local downloads
+# 🎵 Musikat - For Navidrome and local downloads
 
-> **⚠️ Announcement (March 2025):** Spotify is changing their API requirements. **Apps using Development Mode will stop working after March 9, 2026** unless the app owner has an active Spotify Premium subscription. Migration to a free metadata source (e.g. MusicBrainz) is planned. See [Spotify's migration guide](https://developer.spotify.com/documentation/web-api/tutorials/february-2026-migration-guide) for details.
+> **Catalog:** Choose **Deezer** (default, no API key) or **Spotify** (optional credentials) in the web UI or via `DEFAULT_METADATA_PROVIDER` in `.env`.
 
-A modern web application that allows users to search for songs on Spotify and automatically download them from YouTube, then seamlessly add them to your Navidrome music server. Perfect for building your personal music library with proper metadata, album art, and organized file structure.
+A modern web application that searches **Deezer** or **Spotify** for tracks and albums, downloads audio from YouTube, then adds files to your Navidrome server or local downloads with metadata and album art.
 
 ## Screenshots
 
@@ -14,7 +14,7 @@ A modern web application that allows users to search for songs on Spotify and au
 
 ## Features
 
-- 🎵 Search for songs using Spotify's rich database
+- 🎵 Search with **Deezer** (no API key) or **Spotify** (optional)
 - 📥 Automatic download from YouTube using metadata
 - 🏷️ Automatic ID3 tagging with artist, album, album art, and metadata
 - 📂 Direct upload to Navidrome server or local downloads
@@ -27,7 +27,8 @@ A modern web application that allows users to search for songs on Spotify and au
 
 - **Frontend**: Vanilla JavaScript, HTML, CSS
 - **Backend**: Python FastAPI
-- **Spotify API**: For searching and getting track metadata
+- **Deezer API**: Public catalog search (no key)
+- **Spotify Web API**: Optional; requires Client ID + Secret
 - **yt-dlp**: For downloading audio from YouTube
 - **mutagen**: For ID3 tagging
 - **Navidrome**: Music server integration
@@ -36,13 +37,13 @@ A modern web application that allows users to search for songs on Spotify and au
 
 **For Docker (Recommended):**
 - Docker and Docker Compose
-- Spotify API credentials ([Get them here](https://developer.spotify.com/dashboard))
 
 **For Manual Installation:**
 - Python 3.8+ (Python 3.11 recommended, avoid 3.13 due to compatibility issues)
 - FFmpeg (required by yt-dlp for audio conversion)
-- Spotify API credentials ([Get them here](https://developer.spotify.com/dashboard))
 - Navidrome server (optional, for direct server uploads)
+
+**Deezer** needs no API key. **Spotify** requires `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` in `.env` if you select it in the UI.
 
 ## Installation
 
@@ -52,12 +53,12 @@ A modern web application that allows users to search for songs on Spotify and au
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/soggy8/music-downloader.git
-cd music-downloader
+git clone https://github.com/soggy8/musikat.git
+cd musikat
 
-# 2. Setup environment (add your Spotify credentials)
+# 2. Setup environment (optional)
 cp backend/env.example backend/.env
-# Edit backend/.env and add your SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET
+# Edit backend/.env: Navidrome path, optional Spotify credentials, DEFAULT_METADATA_PROVIDER
 
 # 3. Run it!
 docker-compose up -d
@@ -75,7 +76,7 @@ See [SETUP.md](SETUP.md) for detailed setup instructions.
 
 ```bash
 git clone <your-repo-url>
-cd musicDownloader
+cd musikat
 ```
 
 ### 2. Install Python dependencies
@@ -114,10 +115,10 @@ Download from [FFmpeg website](https://ffmpeg.org/download.html) and add to PATH
 Create a `.env` file in the `backend` directory:
 
 ```env
-# Spotify API Configuration
-SPOTIFY_CLIENT_ID=your_spotify_client_id
-SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
-SPOTIFY_REDIRECT_URI=http://localhost:8000/callback
+# Catalog default: deezer | spotify (UI can override)
+DEFAULT_METADATA_PROVIDER=deezer
+# SPOTIFY_CLIENT_ID=
+# SPOTIFY_CLIENT_SECRET=
 
 # Navidrome Configuration
 NAVIDROME_MUSIC_PATH=/path/to/navidrome/music
@@ -135,14 +136,7 @@ API_PORT=8000
 CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 ```
 
-### 5. Get Spotify API Credentials
-
-1. Go to [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
-2. Create a new app
-3. Copy the Client ID and Client Secret
-4. Add `http://localhost:8000/callback` to Redirect URIs (optional for client credentials flow)
-
-### 6. Configure Navidrome Path
+### 5. Configure Navidrome Path
 
 Set `NAVIDROME_MUSIC_PATH` to the directory where Navidrome stores its music library. This path must be:
 - Writable by the user running the backend
@@ -182,21 +176,20 @@ The frontend is automatically served from the backend, so no separate frontend s
 
 ## How It Works
 
-1. **Search**: Uses Spotify API to search for tracks and get rich metadata
+1. **Search**: Uses Deezer or Spotify (your choice) for track/album metadata
 2. **Download**: Uses yt-dlp to search YouTube and download audio
-3. **Tagging**: Applies ID3 tags using metadata from Spotify (title, artist, album, cover art)
+3. **Tagging**: Applies ID3 tags from the chosen catalog (title, artist, album, cover art)
 4. **Upload**: Copies the file to Navidrome's music directory in organized folders (Artist/Album/)
 5. **Scan**: Optionally triggers Navidrome to scan for new files (if API credentials are configured)
 
 ## API Endpoints
 
-- `POST /api/search` - Search for tracks on Spotify
-  - Body: `{ "query": "search term", "limit": 20 }`
-  
-- `GET /api/track/{track_id}` - Get details for a specific track
-
-- `POST /api/download` - Start downloading a track
-  - Body: `{ "track_id": "spotify_track_id", "location": "local" | "navidrome" }`
+- `GET /api/metadata/providers` - List catalog options and whether Spotify is configured
+- `POST /api/search` - Search tracks
+  - Body: `{ "query": "...", "limit": 20, "provider": "deezer" | "spotify" }`
+- `GET /api/track/{track_id}` - Track details (`?provider=deezer|spotify`)
+- `POST /api/download` - Start download
+  - Body: `{ "track_id": "...", "location": "local"|"navidrome", "provider": "deezer"|"spotify", ... }`
 
 - `GET /api/download/status/{track_id}` - Get download status
 
@@ -205,7 +198,7 @@ The frontend is automatically served from the backend, so no separate frontend s
 ## Project Structure
 
 ```
-music-downloader/
+musikat/
 ├── backend/
 │   ├── app.py                 # FastAPI main application
 │   ├── config.py              # Configuration management
@@ -217,7 +210,8 @@ music-downloader/
 │   ├── templates              # Templates
 │   │   └── index.html         # Main HTML page
 │   ├── services/
-│   │   ├── spotify.py         # Spotify API integration
+│   │   ├── deezer.py          # Deezer catalog (no API key)
+│   │   ├── spotify.py         # Spotify catalog (optional)
 │   │   ├── youtube.py         # YouTube download with yt-dlp
 │   │   ├── metadata.py        # ID3 tagging
 │   │   └── navidrome.py       # Navidrome integration
@@ -234,10 +228,10 @@ music-downloader/
 
 ## Troubleshooting
 
-### Spotify API Errors
+### Search Returns No Results
 
-- Make sure your Client ID and Secret are correct
-- Check that you've created an app in the Spotify Developer Dashboard
+- Try the other catalog (Deezer vs Spotify) from the **Catalog** dropdown
+- Use more specific queries (artist + song title)
 
 ### YouTube Download Fails
 
@@ -294,7 +288,7 @@ yt-dlp --cookies-from-browser chrome --cookies youtube_cookies.txt "https://www.
 
 - This tool is for personal use only
 - Respect copyright laws in your jurisdiction
-- Spotify API Terms of Service apply
+- Deezer, Spotify, and YouTube each have their own terms of use
 - YouTube Terms of Service apply
 - Use responsibly and ethically
 
@@ -308,11 +302,11 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## Description
 
-Music Downloader is a full-stack web application designed to streamline the process of adding music to your Navidrome server. By leveraging Spotify's comprehensive music database for search and metadata, and YouTube as the audio source, it provides a seamless way to discover and download music with proper ID3 tags, album artwork, and organized folder structure.
+Musikat streamlines adding music to Navidrome: search **Deezer** or **Spotify**, download from **YouTube**, and get ID3 tags and artwork from the catalog you picked.
 
 **Key Benefits:**
 - 🚀 **Fast & Efficient**: Single-click downloads with automatic processing
-- 📊 **Rich Metadata**: Complete ID3 tags from Spotify (artist, album, year, genre, artwork)
+- 📊 **Rich Metadata**: ID3 tags from Deezer or Spotify (artist, album, year, artwork)
 - 🗂️ **Auto-Organization**: Files automatically organized in Artist/Album/ structure
 - 🔄 **Auto-Sync**: Automatically triggers Navidrome library scans
 - 💻 **Self-Hosted**: Full control over your data and downloads

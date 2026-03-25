@@ -1,11 +1,11 @@
 version: '3.8'
 
 services:
-  music-downloader:
+  musikat:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: music-downloader
+    container_name: musikat
     restart: unless-stopped
     ports:
       - "8000:8000"

@@ -6,15 +6,15 @@ Your repository is now ready to be pushed to GitHub!
 
 1. **Create a new repository on GitHub:**
    - Go to https://github.com/new
-   - Repository name: `music-downloader` (or your preferred name)
-   - Description: `🎵 A web application that searches Spotify and downloads music from YouTube to your Navidrome server`
+   - Repository name: `musikat` (or your preferred name)
+   - Description: `🎵 Search Deezer or Spotify and download from YouTube to Navidrome`
    - Choose Public or Private
    - **DO NOT** initialize with README, .gitignore, or license (we already have these)
    - Click "Create repository"
 
 2. **Add the remote and push:**
    ```bash
-   cd /home/andrej/projects/web/fullstack/musicDownloader
+   cd /path/to/musikat
    git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
    git push -u origin main
    ```
@@ -27,13 +27,13 @@ Your repository is now ready to be pushed to GitHub!
 
 3. **Set repository description on GitHub:**
    - After pushing, go to your repository settings
-   - Add this description: "A modern web application that allows users to search for songs on Spotify and automatically download them from YouTube, then seamlessly add them to your Navidrome music server with proper metadata, album art, and organized file structure."
+   - Add this description: "Search Deezer or Spotify, download from YouTube, tag and add to Navidrome or local downloads."
 
 4. **Optional: Add topics/tags:**
-   - `spotify`
+   - `deezer`
    - `youtube`
    - `navidrome`
-   - `music-downloader`
+   - `musikat`
    - `fastapi`
    - `python`
    - `javascript`
@@ -46,7 +46,7 @@ Use this as the repository description:
 
 **Short version (120 chars max):**
 ```
-🎵 Search Spotify and download music from YouTube to your Navidrome server with automatic metadata tagging
+🎵 Search Deezer or Spotify and download from YouTube to Navidrome with automatic tagging
 ```
 
 **Long version (for README):**

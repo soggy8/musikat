@@ -1,6 +1,6 @@
 # Deployment Guide for Navidrome Server
 
-This guide will help you deploy the Music Downloader to the same server that hosts Navidrome.
+This guide will help you deploy Musikat to the same server that hosts Navidrome.
 
 ## Pre-Deployment Checklist
 
@@ -18,13 +18,13 @@ Copy the entire project directory to your Navidrome server:
 
 ```bash
 # On your local machine
-scp -r /home/andrej/projects/web/fullstack/musicDownloader user@your-server:/path/to/deployment/
+scp -r /home/andrej/projects/web/fullstack/musikat user@your-server:/path/to/deployment/
 ```
 
 Or use git:
 ```bash
 # On server
-git clone <your-repo-url> /path/to/musicDownloader
+git clone <your-repo-url> /path/to/musikat
 ```
 
 ### 2. Install Dependencies on Server
@@ -38,7 +38,7 @@ sudo apt update
 sudo apt install python3 python3-pip python3-venv ffmpeg -y
 
 # Navigate to project
-cd /path/to/musicDownloader/backend
+cd /path/to/musikat/backend
 
 # Create virtual environment
 python3 -m venv venv
@@ -61,10 +61,8 @@ nano .env
 **Important configuration values:**
 
 ```env
-# Spotify API (required)
-SPOTIFY_CLIENT_ID=your_actual_client_id
-SPOTIFY_CLIENT_SECRET=your_actual_client_secret
-SPOTIFY_REDIRECT_URI=https://your-domain.com/callback  # Or http://your-server-ip:8000/callback
+# DEFAULT_METADATA_PROVIDER=deezer
+# Optional: SPOTIFY_CLIENT_ID= SPOTIFY_CLIENT_SECRET=
 
 # Navidrome Configuration (CRITICAL for production)
 # This MUST be the actual path to Navidrome's music library
@@ -105,7 +103,7 @@ sudo chmod -R 775 /path/to/navidrome/music
 
 ```bash
 # Activate virtual environment
-cd /path/to/musicDownloader/backend
+cd /path/to/musikat/backend
 source venv/bin/activate
 
 # Test run
@@ -123,22 +121,22 @@ Open `http://your-server-ip:8000` in a browser and test:
 Create a systemd service for automatic startup:
 
 ```bash
-sudo nano /etc/systemd/system/music-downloader.service
+sudo nano /etc/systemd/system/musikat.service
 ```
 
 Add:
 
 ```ini
 [Unit]
-Description=Music Downloader Service
+Description=Musikat Service
 After=network.target
 
 [Service]
 Type=simple
 User=your-username
-WorkingDirectory=/path/to/musicDownloader/backend
-Environment="PATH=/path/to/musicDownloader/backend/venv/bin"
-ExecStart=/path/to/musicDownloader/backend/venv/bin/uvicorn app:app --host 0.0.0.0 --port 8000
+WorkingDirectory=/path/to/musikat/backend
+Environment="PATH=/path/to/musikat/backend/venv/bin"
+ExecStart=/path/to/musikat/backend/venv/bin/uvicorn app:app --host 0.0.0.0 --port 8000
 Restart=always
 RestartSec=10
 
@@ -150,9 +148,9 @@ Enable and start:
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable music-downloader
-sudo systemctl start music-downloader
-sudo systemctl status music-downloader
+sudo systemctl enable musikat
+sudo systemctl start musikat
+sudo systemctl status musikat
 ```
 
 ### 7. Set Up Reverse Proxy (Optional but Recommended)
@@ -160,7 +158,7 @@ sudo systemctl status music-downloader
 If you want to use HTTPS and a domain name, set up nginx:
 
 ```bash
-sudo nano /etc/nginx/sites-available/music-downloader
+sudo nano /etc/nginx/sites-available/musikat
 ```
 
 Add:
@@ -183,7 +181,7 @@ server {
 Enable and restart:
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/music-downloader /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/musikat /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl restart nginx
 ```
@@ -228,10 +226,6 @@ To:
 - Change `API_PORT` in `.env` to a different port (e.g., 8001)
 - Update firewall rules if needed
 
-### Spotify API Errors
-- Verify credentials are correct in `.env`
-- Check if your Spotify app has proper redirect URIs configured
-
 ## Security Considerations
 
 1. **Firewall**: Only expose port 8000 if needed, or use a reverse proxy with authentication
@@ -241,7 +235,7 @@ To:
 
 ## Maintenance
 
-- Monitor logs: `sudo journalctl -u music-downloader -f`
+- Monitor logs: `sudo journalctl -u musikat -f`
 - Check disk space in Navidrome music directory
 - Keep dependencies updated: `pip install -r requirements.txt --upgrade`
 

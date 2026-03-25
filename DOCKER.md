@@ -5,23 +5,20 @@
 ## Prerequisites
 
 - Docker and Docker Compose installed
-- Spotify API credentials (get from https://developer.spotify.com/dashboard)
 - (Optional) Navidrome server
+
+Default catalog is **Deezer** (no API key). Optional **Spotify**: set credentials in `backend/.env`.
 
 ## Quick Start (3 Steps!)
 
 1. **Clone and setup**
    ```bash
-   git clone https://github.com/soggy8/music-downloader.git
-   cd music-downloader
+   git clone https://github.com/soggy8/musikat.git
+   cd musikat
    cp backend/env.example backend/.env
    ```
 
-2. **Edit `backend/.env`** - Add your Spotify credentials:
-   ```env
-   SPOTIFY_CLIENT_ID=your_client_id
-   SPOTIFY_CLIENT_SECRET=your_client_secret
-   ```
+2. **Edit `backend/.env`** (optional) - Configure Navidrome path, etc. No API keys needed.
 
 3. **Run it!**
    ```bash
@@ -45,10 +42,8 @@ volumes:
 Edit `backend/.env` file with your settings:
 
 ```env
-# Spotify API (required)
-SPOTIFY_CLIENT_ID=your_spotify_client_id
-SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
-SPOTIFY_REDIRECT_URI=http://localhost:8000/callback
+# DEFAULT_METADATA_PROVIDER=deezer
+# Optional Spotify: SPOTIFY_CLIENT_ID= SPOTIFY_CLIENT_SECRET=
 
 # Navidrome Configuration
 NAVIDROME_MUSIC_PATH=/music  # Inside container, don't change
@@ -183,11 +178,11 @@ ports:
 ## Building the Image Manually
 
 ```bash
-docker build -t music-downloader .
+docker build -t musikat .
 docker run -p 8000:8000 \
   -v /path/to/navidrome/music:/music \
   -v $(pwd)/backend/.env:/app/backend/.env \
-  music-downloader
+  musikat
 ```
 
 ## Production Deployment

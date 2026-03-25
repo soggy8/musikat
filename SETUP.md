@@ -28,20 +28,12 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Configure environment
+# Configure environment (optional)
 cp env.example .env
-# Edit .env with your credentials
+# Edit .env: Navidrome path, optional Spotify credentials, DEFAULT_METADATA_PROVIDER.
 ```
 
-## 3. Get Spotify API Credentials
-
-1. Go to https://developer.spotify.com/dashboard
-2. Log in with your Spotify account
-3. Click "Create app"
-4. Fill in app name and description
-5. Copy Client ID and Client Secret to `.env` file
-
-## 4. Configure Navidrome Path
+## 3. Configure Navidrome Path (Optional)
 
 Edit `backend/.env` and set:
 ```env
@@ -53,7 +45,7 @@ This is the directory where Navidrome stores its music files. Make sure:
 - The user running the backend has write permissions
 - If Navidrome is on a remote server, mount it locally (NFS, SMB, etc.)
 
-## 5. Run the Application
+## 4. Run the Application
 
 ### Option 1: Use the start script
 ```bash
@@ -68,7 +60,7 @@ source venv/bin/activate
 python app.py
 ```
 
-## 6. Access the Application
+## 5. Access the Application
 
 Open your browser and go to: http://localhost:8000
 
@@ -77,10 +69,6 @@ Open your browser and go to: http://localhost:8000
 ### "FFmpeg not found"
 - Make sure FFmpeg is installed: `ffmpeg -version`
 - Add FFmpeg to your system PATH
-
-### "Spotify credentials not configured"
-- Check that `.env` file exists in `backend/` directory
-- Verify `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` are set
 
 ### "Permission denied" when uploading to Navidrome
 - Check file permissions on `NAVIDROME_MUSIC_PATH`

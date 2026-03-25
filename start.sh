@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Start script for Music Downloader
+# Start script for Musikat
 
-echo "Starting Music Downloader..."
+echo "Starting Musikat..."
 
 # Check if virtual environment exists
 if [ ! -d "backend/venv" ]; then
@@ -41,7 +41,7 @@ cd ..
 
 echo ""
 echo "=========================================="
-echo "Music Downloader is running!"
+echo "Musikat is running!"
 echo "Access at: http://localhost:8000"
 echo "=========================================="
 echo ""
