@@ -74,6 +74,7 @@ from services.youtube import YouTubeService
 from services.metadata import MetadataService
 from services.navidrome import NavidromeService
 from utils.file_handler import get_download_path
+from utils.navidrome_library_sync import start_navidrome_library_sync_background
 
 app = FastAPI(title="Musikat API", version="1.0.0")
 
@@ -105,6 +106,8 @@ youtube_service = YouTubeService()
 metadata_service = MetadataService()
 navidrome_service = NavidromeService()
 
+start_navidrome_library_sync_background(deezer_service, spotify_service)
+
 
 def physical_track_file_exists(track_info: dict, location: str, output_format: str) -> bool:
     """True if an audio file for this track already exists at the target location."""
@@ -127,10 +130,11 @@ def get_duplicate_download_reason(
     output_format: str,
     track_info: Optional[dict] = None,
 ) -> Optional[str]:
-    """None if download is allowed; otherwise a short message for HTTP 409."""
-    if has_completed_download(track_id, provider):
-        return "This track was already downloaded."
+    """None if download is allowed; otherwise a short message for HTTP 409.
 
+    Local browser downloads do not use completed_track_downloads. Navidrome does,
+    so we block duplicates there when the DB says the track was already added.
+    """
     job = get_job(track_id)
     if job and job.get("status") in ("queued", "processing"):
         return "A download is already in progress for this track."
@@ -142,6 +146,9 @@ def get_duplicate_download_reason(
         track_info = svc.get_track_details(track_id)
     if not track_info:
         return None
+
+    if location == "navidrome" and has_completed_download(track_id, provider):
+        return "This track was already downloaded."
 
     if physical_track_file_exists(track_info, location, output_format):
         return "This track is already in your library."
@@ -937,53 +944,66 @@ async def download_file(track_id: str, filename: str = Query(...),
     return response
 
 
-def cleanup_temp_file(file_path: str, job_id: str):
-    """Clean up temporary download file after it's been served; record catalog id so duplicates are blocked."""
+def cleanup_temp_file(file_path: str, _job_id: str):
+    """Clean up temporary download file after it's been served (local browser downloads).
+
+    We do not record completed_track_downloads here — that table is for Navidrome
+    library copies only (see download_and_process).
+    """
     try:
         # Long delay so duplicate requests (extra tabs, extensions, browser retries) still hit the file
         time.sleep(max(2, config.TEMP_FILE_CLEANUP_DELAY_SEC))
         if os.path.exists(file_path):
             os.remove(file_path)
             print(f"Cleaned up temp file: {file_path}")
-        job = get_job(job_id)
-        if job:
-            p = job.get("payload") or {}
-            rid = p.get("record_track_id")
-            prov = (p.get("provider") or "deezer").lower().strip()
-            if prov not in ALLOWED_METADATA_PROVIDERS:
-                prov = "deezer"
-            if rid:
-                record_completed_download(rid, prov)
     except Exception as e:
         print(f"Error cleaning up temp file {file_path}: {e}")
 
 
 @app.get("/api/track/{track_id}/exists")
-async def check_track_exists(track_id: str, provider: Optional[str] = Query(None)):
-    """Check if a track file already exists in downloads"""
+async def check_track_exists(
+    track_id: str,
+    provider: Optional[str] = Query(None),
+    location: str = Query("local"),
+):
+    """Check if a track is already present (see below).
+
+    - location=local: only files on this server (downloads/temp or downloads root).
+      Does not use completed_track_downloads. Local browser saves go to the client PC.
+    - location=navidrome: library file, DB completion record, or on-disk files here.
+    """
     p = resolve_metadata_provider(provider)
     svc = get_metadata_service(p)
     try:
-        if has_completed_download(track_id, p):
-            return {"exists": True, "file_path": None}
+        if location not in ("local", "navidrome"):
+            location = "local"
 
         track_info = svc.get_track_details(track_id)
         if not track_info:
-            return {"exists": False}
+            return {"exists": False, "file_path": None}
 
         ext = config.OUTPUT_FORMAT
         download_path = get_download_path(track_info, config.DOWNLOAD_DIR, ext)
-        if os.path.isfile(download_path):
-            return {"exists": True, "file_path": download_path}
-
         temp_path = get_download_path(
             track_info, os.path.join(config.DOWNLOAD_DIR, "temp"), ext
         )
-        if os.path.isfile(temp_path):
-            return {"exists": True, "file_path": temp_path}
 
+        if location == "local":
+            if os.path.isfile(download_path):
+                return {"exists": True, "file_path": download_path}
+            if os.path.isfile(temp_path):
+                return {"exists": True, "file_path": temp_path}
+            return {"exists": False, "file_path": None}
+
+        # navidrome
+        if has_completed_download(track_id, p):
+            return {"exists": True, "file_path": None}
         if navidrome_service.track_file_exists(track_info, ext):
             return {"exists": True, "file_path": None}
+        if os.path.isfile(download_path):
+            return {"exists": True, "file_path": download_path}
+        if os.path.isfile(temp_path):
+            return {"exists": True, "file_path": temp_path}
 
         return {"exists": False, "file_path": None}
     except Exception as e:

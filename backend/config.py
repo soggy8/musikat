@@ -18,6 +18,12 @@ NAVIDROME_MUSIC_PATH = os.getenv("NAVIDROME_MUSIC_PATH", "/music")
 NAVIDROME_API_URL = os.getenv("NAVIDROME_API_URL", "http://localhost:4533")
 NAVIDROME_USERNAME = os.getenv("NAVIDROME_USERNAME", "")
 NAVIDROME_PASSWORD = os.getenv("NAVIDROME_PASSWORD", "")
+# Scan music folder periodically and match files to Deezer/Spotify — mark completed_track_downloads
+_nav_sync = os.getenv("NAVIDROME_SYNC_ENABLED", "true").lower().strip()
+NAVIDROME_SYNC_ENABLED = _nav_sync in ("1", "true", "yes", "on")
+NAVIDROME_SYNC_INTERVAL_HOURS = float(os.getenv("NAVIDROME_SYNC_INTERVAL_HOURS", "4"))
+NAVIDROME_SYNC_INITIAL_DELAY_SEC = int(os.getenv("NAVIDROME_SYNC_INITIAL_DELAY_SEC", "120"))
+NAVIDROME_SYNC_API_DELAY_SEC = float(os.getenv("NAVIDROME_SYNC_API_DELAY_SEC", "0.12"))
 
 # Download Configuration
 DOWNLOAD_DIR = os.getenv("DOWNLOAD_DIR", "./downloads")  # Temporary download location for testing

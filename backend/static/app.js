@@ -398,11 +398,6 @@ async function startReverseDownload() {
         provider: getMetadataProvider(),
     };
 
-    if (reverseState.selectedSpotifyTrackId && await isTrackAlreadyDownloaded(reverseState.selectedSpotifyTrackId)) {
-        showError('This track is already in your library.');
-        return;
-    }
-
     // Mark as downloading using synthetic id returned by API
     try {
         showDownloadStatus();
@@ -466,9 +461,12 @@ async function displayTracks(tracks) {
     
     // Check which tracks are already downloaded
     const downloadedTracks = new Set();
+    const downloadLocation = document.getElementById('downloadLocation')?.value || 'local';
     const checkPromises = tracks.map(async (track) => {
         try {
-            const response = await fetch(`api/track/${encodeURIComponent(track.id)}/exists?provider=${encodeURIComponent(getMetadataProvider())}`);
+            const response = await fetch(
+                `api/track/${encodeURIComponent(track.id)}/exists?provider=${encodeURIComponent(getMetadataProvider())}&location=${encodeURIComponent(downloadLocation)}`
+            );
             if (response.ok) {
                 const data = await response.json();
                 if (data.exists) {
@@ -523,27 +521,9 @@ function createTrackCard(track, isDownloaded = false) {
     `;
 }
 
-async function isTrackAlreadyDownloaded(trackId) {
-    try {
-        const r = await fetch(
-            `api/track/${encodeURIComponent(trackId)}/exists?provider=${encodeURIComponent(getMetadataProvider())}`
-        );
-        if (!r.ok) return false;
-        const d = await r.json();
-        return d.exists === true;
-    } catch {
-        return false;
-    }
-}
-
 async function downloadTrack(track, selectedVideoId = null) {
     const trackId = track.id;
 
-    if (await isTrackAlreadyDownloaded(trackId)) {
-        showError('This track is already in your library.');
-        return;
-    }
-    
     // Get download location preference
     const downloadLocation = document.getElementById('downloadLocation').value;
     
