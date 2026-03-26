@@ -51,7 +51,37 @@ class NavidromeService:
                 counter += 1
         
         return target_path
-    
+
+    def track_file_exists(self, track_info: Dict, file_extension: str) -> bool:
+        """True if a file for this track already exists in the library folder (incl. numbered duplicates)."""
+        ti = dict(track_info)
+        if 'artist' in ti:
+            ti['artist'] = ti['artist'].replace(',', ';')
+            artist_name = ti['artist'].split(';')[0].strip()
+        else:
+            artist_name = 'Unknown Artist'
+
+        if 'album_artist' in ti:
+            ti['album_artist'] = ti['album_artist'].replace(',', ';')
+            artist_name = ti['album_artist'].split(';')[0].strip()
+
+        artist_name = self._sanitize_path(artist_name)
+        album_name = self._sanitize_path(ti.get('album', 'Unknown Album'))
+        target_dir = Path(self.music_path) / artist_name / album_name
+        if not target_dir.is_dir():
+            return False
+
+        stem = self._sanitize_filename(ti['name'])
+        ext = file_extension.lstrip('.')
+        p0 = target_dir / f"{stem}.{ext}"
+        if p0.is_file():
+            return True
+        for n in range(1, 100):
+            p = target_dir / f"{stem} ({n}).{ext}"
+            if p.is_file():
+                return True
+        return False
+
     def finalize_track(self, file_path: str) -> Dict:
         """Finalize track by triggering Navidrome scan"""
         try:

@@ -53,6 +53,15 @@ def init_jobs_db() -> None:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_download_jobs_status ON download_jobs(status)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_download_jobs_updated ON download_jobs(updated_at_ms)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_download_jobs_album_id ON download_jobs(album_id)")
+
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS completed_track_downloads (
+            track_id TEXT NOT NULL,
+            provider TEXT NOT NULL,
+            completed_at_ms INTEGER NOT NULL,
+            PRIMARY KEY (track_id, provider)
+        )
+        """)
         conn.commit()
     finally:
         conn.close()
@@ -97,6 +106,36 @@ def upsert_job(
             now, now
         ))
         conn.commit()
+    finally:
+        conn.close()
+
+
+def record_completed_download(track_id: str, provider: str) -> None:
+    """Mark a catalog track as already downloaded (survives temp file cleanup)."""
+    now = _now_ms()
+    conn = _db()
+    try:
+        conn.execute(
+            """
+            INSERT INTO completed_track_downloads (track_id, provider, completed_at_ms)
+            VALUES (?, ?, ?)
+            ON CONFLICT(track_id, provider) DO UPDATE SET completed_at_ms = excluded.completed_at_ms
+            """,
+            (track_id, provider, now),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def has_completed_download(track_id: str, provider: str) -> bool:
+    conn = _db()
+    try:
+        row = conn.execute(
+            "SELECT 1 FROM completed_track_downloads WHERE track_id = ? AND provider = ?",
+            (track_id, provider),
+        ).fetchone()
+        return row is not None
     finally:
         conn.close()
 

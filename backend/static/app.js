@@ -398,6 +398,11 @@ async function startReverseDownload() {
         provider: getMetadataProvider(),
     };
 
+    if (reverseState.selectedSpotifyTrackId && await isTrackAlreadyDownloaded(reverseState.selectedSpotifyTrackId)) {
+        showError('This track is already in your library.');
+        return;
+    }
+
     // Mark as downloading using synthetic id returned by API
     try {
         showDownloadStatus();
@@ -408,7 +413,7 @@ async function startReverseDownload() {
         });
 
         if (!response.ok) {
-            const err = await response.json();
+            const err = await response.json().catch(() => ({}));
             throw new Error(err.detail || 'Reverse download failed');
         }
 
@@ -428,7 +433,7 @@ async function startReverseDownload() {
         pollDownloadStatus(jobId, trackLike);
 
     } catch (err) {
-        showError(`Reverse download failed: ${err.message}`);
+        showError(err.message || String(err));
     }
 }
 
@@ -518,8 +523,26 @@ function createTrackCard(track, isDownloaded = false) {
     `;
 }
 
+async function isTrackAlreadyDownloaded(trackId) {
+    try {
+        const r = await fetch(
+            `api/track/${encodeURIComponent(trackId)}/exists?provider=${encodeURIComponent(getMetadataProvider())}`
+        );
+        if (!r.ok) return false;
+        const d = await r.json();
+        return d.exists === true;
+    } catch {
+        return false;
+    }
+}
+
 async function downloadTrack(track, selectedVideoId = null) {
     const trackId = track.id;
+
+    if (await isTrackAlreadyDownloaded(trackId)) {
+        showError('This track is already in your library.');
+        return;
+    }
     
     // Get download location preference
     const downloadLocation = document.getElementById('downloadLocation').value;
@@ -605,8 +628,9 @@ async function downloadTrack(track, selectedVideoId = null) {
         });
         
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || 'Download failed');
+            const error = await response.json().catch(() => ({}));
+            const msg = error.detail || 'Download failed';
+            throw new Error(msg);
         }
         
         // Poll for status updates
@@ -615,7 +639,7 @@ async function downloadTrack(track, selectedVideoId = null) {
     } catch (err) {
         updateDownloadButton(trackId, false);
         activeDownloads.delete(trackId);
-        showError(`Download failed: ${err.message}`);
+        showError(err.message || String(err));
     }
 }
 
@@ -1153,9 +1177,11 @@ async function downloadAlbum() {
         
         // Show download status
         showDownloadStatus();
-        
-        // Add status items for each track
-        currentAlbum.tracks.forEach(track => {
+
+        const queuedIds = new Set(result.queued_track_ids || []);
+        const tracksToPoll = currentAlbum.tracks.filter(t => queuedIds.has(t.id));
+
+        tracksToPoll.forEach(track => {
             activeDownloads.set(track.id, { status: 'queued', progress: 0, track: track });
             addStatusItem(track.id, track, 'queued', `Queued (Album: ${currentAlbum.name})`, 0);
             pollDownloadStatus(track.id, track);

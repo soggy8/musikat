@@ -19,7 +19,14 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import config
 from services.deezer import DeezerService
 from services.spotify import SpotifyService
-from utils.job_store import init_jobs_db, upsert_job, get_job, get_album_aggregate
+from utils.job_store import (
+    init_jobs_db,
+    upsert_job,
+    get_job,
+    get_album_aggregate,
+    record_completed_download,
+    has_completed_download,
+)
 
 ALLOWED_METADATA_PROVIDERS = frozenset({"deezer", "spotify"})
 
@@ -93,6 +100,49 @@ except Exception as e:
 youtube_service = YouTubeService()
 metadata_service = MetadataService()
 navidrome_service = NavidromeService()
+
+
+def physical_track_file_exists(track_info: dict, location: str, output_format: str) -> bool:
+    """True if an audio file for this track already exists at the target location."""
+    if location == "local":
+        root = get_download_path(track_info, config.DOWNLOAD_DIR, output_format)
+        if os.path.isfile(root):
+            return True
+        temp_dir = os.path.join(config.DOWNLOAD_DIR, "temp")
+        temp_p = get_download_path(track_info, temp_dir, output_format)
+        return os.path.isfile(temp_p)
+    if location == "navidrome":
+        return navidrome_service.track_file_exists(track_info, output_format)
+    return False
+
+
+def get_duplicate_download_reason(
+    track_id: str,
+    provider: str,
+    location: str,
+    output_format: str,
+    track_info: Optional[dict] = None,
+) -> Optional[str]:
+    """None if download is allowed; otherwise a short message for HTTP 409."""
+    if has_completed_download(track_id, provider):
+        return "This track was already downloaded."
+
+    job = get_job(track_id)
+    if job and job.get("status") in ("queued", "processing"):
+        return "A download is already in progress for this track."
+
+    if track_info is None:
+        svc = deezer_service if provider == "deezer" else spotify_service
+        if svc is None:
+            return None
+        track_info = svc.get_track_details(track_id)
+    if not track_info:
+        return None
+
+    if physical_track_file_exists(track_info, location, output_format):
+        return "This track is already in your library."
+
+    return None
 
 
 # Request models
@@ -193,6 +243,13 @@ def download_and_process(
                        )
             return
 
+        dup = get_duplicate_download_reason(
+            track_id, metadata_provider, location, output_format, track_info
+        )
+        if dup:
+            upsert_job(track_id, status="error", message=dup, progress=0)
+            return
+
         upsert_job(track_id, status="processing", message="Preparing download location...", stage="preparing",
                    progress=15)
 
@@ -279,6 +336,7 @@ def download_and_process(
                                stage="completed",
                                progress=100
                                )
+                    record_completed_download(track_id, metadata_provider)
 
                 else:
                     upsert_job(track_id,
@@ -288,6 +346,7 @@ def download_and_process(
                                stage="completed",
                                progress=100
                                )
+                    record_completed_download(track_id, metadata_provider)
 
             except Exception as e:
                 upsert_job(track_id,
@@ -454,13 +513,22 @@ async def download_track(request: DownloadRequest, background_tasks: BackgroundT
     provider = resolve_metadata_provider(request.provider)
     get_metadata_service(provider)
 
+    output_format = request.format or config.OUTPUT_FORMAT
+    dup = get_duplicate_download_reason(
+        request.track_id, provider, request.location, output_format
+    )
+    if dup:
+        raise HTTPException(status_code=409, detail=dup)
+
     location_msg = "local downloads folder" if request.location == "local" else "Navidrome server"
-    upsert_job(request.track_id,
-               status="queued",
-               message=f"Download queued for {location_msg}",
-               progress=0,
-               stage="queued"
-               )
+    upsert_job(
+        request.track_id,
+        status="queued",
+        message=f"Download queued for {location_msg}",
+        progress=0,
+        stage="queued",
+        payload={"provider": provider, "record_track_id": request.track_id},
+    )
     background_tasks.add_task(
         download_and_process,
         request.track_id,
@@ -582,6 +650,8 @@ def reverse_download_and_process(
                            stage="completed",
                            progress=100,
                            )
+                if track_id:
+                    record_completed_download(track_id, metadata_provider)
             except Exception as e:
                 upsert_job(job_id, status="error", message=f"Failed to copy to Navidrome: {str(e)}", progress=0)
         else:
@@ -610,14 +680,23 @@ async def reverse_download(request: ReverseDownloadRequest, background_tasks: Ba
     location = request.location if request.location in ["local", "navidrome"] else "local"
     location_msg = "local downloads folder" if location == "local" else "Navidrome server"
 
+    if request.spotify_track_id:
+        dup = get_duplicate_download_reason(
+            request.spotify_track_id, provider, location, config.OUTPUT_FORMAT
+        )
+        if dup:
+            raise HTTPException(status_code=409, detail=dup)
+
     job_id = f"yt-{abs(hash((request.youtube_url, request.spotify_track_id or '', location, provider))) % 10_000_000}"
 
-    upsert_job(job_id,
-               status="queued",
-               message=f"Reverse download queued for {location_msg}",
-               progress=0,
-               stage="queued",
-               )
+    upsert_job(
+        job_id,
+        status="queued",
+        message=f"Reverse download queued for {location_msg}",
+        progress=0,
+        stage="queued",
+        payload={"provider": provider, "record_track_id": request.spotify_track_id},
+    )
 
     background_tasks.add_task(
         reverse_download_and_process,
@@ -666,6 +745,22 @@ async def download_album(request: AlbumDownloadRequest, background_tasks: Backgr
     if not album:
         raise HTTPException(status_code=404, detail="Album not found")
 
+    # Validate location
+    location = request.location if request.location in ["local", "navidrome"] else "local"
+    location_msg = "local downloads folder" if location == "local" else "Navidrome server"
+
+    output_format = request.format or config.OUTPUT_FORMAT
+    to_queue = []
+    for track in album["tracks"]:
+        if get_duplicate_download_reason(track["id"], provider, location, output_format) is None:
+            to_queue.append(track)
+
+    if not to_queue:
+        raise HTTPException(
+            status_code=400,
+            detail="All tracks in this album are already downloaded or still downloading.",
+        )
+
     upsert_job(
         album_job_id,
         status="queued",
@@ -677,24 +772,21 @@ async def download_album(request: AlbumDownloadRequest, background_tasks: Backgr
             "album_id": request.album_id,
             "album_name": album["name"],
             "artist": album["artist"],
-            "track_ids": [t["id"] for t in album["tracks"]],
-            "total_tracks": len(album["tracks"]),
+            "track_ids": [t["id"] for t in to_queue],
+            "total_tracks": len(to_queue),
         },
     )
 
-    # Validate location
-    location = request.location if request.location in ["local", "navidrome"] else "local"
-    location_msg = "local downloads folder" if location == "local" else "Navidrome server"
-
-    # Queue each track for download
-    for track in album['tracks']:
-        upsert_job(track['id'],
-                   status="queued",
-                   message=f"Queued (Album: {album['name']})",
-                   progress=0,
-                   stage="queued",
-                   album_id=request.album_id
-                   )
+    for track in to_queue:
+        upsert_job(
+            track["id"],
+            status="queued",
+            message=f"Queued (Album: {album['name']})",
+            progress=0,
+            stage="queued",
+            album_id=request.album_id,
+            payload={"provider": provider, "record_track_id": track["id"]},
+        )
         background_tasks.add_task(
             download_album_track,
             track["id"],
@@ -705,11 +797,15 @@ async def download_album(request: AlbumDownloadRequest, background_tasks: Backgr
             provider,
         )
 
+    skipped = len(album["tracks"]) - len(to_queue)
     return {
         "status": "queued",
-        "message": f"Album '{album['name']}' queued for download to {location_msg}",
+        "message": f"Queued {len(to_queue)} track(s) from '{album['name']}' to {location_msg}"
+        + (f" ({skipped} skipped — already in library)" if skipped else ""),
         "album_id": request.album_id,
-        "total_tracks": len(album['tracks'])
+        "total_tracks": len(to_queue),
+        "skipped_tracks": skipped,
+        "queued_track_ids": [t["id"] for t in to_queue],
     }
 
 
@@ -832,19 +928,28 @@ async def download_file(track_id: str, filename: str = Query(...),
 
     # Delete temp file after download completes (only for local downloads)
     if is_temp_file:
-        background_tasks.add_task(cleanup_temp_file, file_path)
+        background_tasks.add_task(cleanup_temp_file, file_path, track_id)
 
     return response
 
 
-def cleanup_temp_file(file_path: str):
-    """Clean up temporary download file after it's been served"""
+def cleanup_temp_file(file_path: str, job_id: str):
+    """Clean up temporary download file after it's been served; record catalog id so duplicates are blocked."""
     try:
         # Long delay so duplicate requests (extra tabs, extensions, browser retries) still hit the file
         time.sleep(max(2, config.TEMP_FILE_CLEANUP_DELAY_SEC))
         if os.path.exists(file_path):
             os.remove(file_path)
             print(f"Cleaned up temp file: {file_path}")
+        job = get_job(job_id)
+        if job:
+            p = job.get("payload") or {}
+            rid = p.get("record_track_id")
+            prov = (p.get("provider") or "deezer").lower().strip()
+            if prov not in ALLOWED_METADATA_PROVIDERS:
+                prov = "deezer"
+            if rid:
+                record_completed_download(rid, prov)
     except Exception as e:
         print(f"Error cleaning up temp file {file_path}: {e}")
 
@@ -855,18 +960,28 @@ async def check_track_exists(track_id: str, provider: Optional[str] = Query(None
     p = resolve_metadata_provider(provider)
     svc = get_metadata_service(p)
     try:
+        if has_completed_download(track_id, p):
+            return {"exists": True, "file_path": None}
+
         track_info = svc.get_track_details(track_id)
         if not track_info:
             return {"exists": False}
 
-        # Check if file exists
-        download_path = get_download_path(track_info, config.DOWNLOAD_DIR, config.OUTPUT_FORMAT)
-        file_exists = os.path.exists(download_path)
+        ext = config.OUTPUT_FORMAT
+        download_path = get_download_path(track_info, config.DOWNLOAD_DIR, ext)
+        if os.path.isfile(download_path):
+            return {"exists": True, "file_path": download_path}
 
-        return {
-            "exists": file_exists,
-            "file_path": download_path if file_exists else None
-        }
+        temp_path = get_download_path(
+            track_info, os.path.join(config.DOWNLOAD_DIR, "temp"), ext
+        )
+        if os.path.isfile(temp_path):
+            return {"exists": True, "file_path": temp_path}
+
+        if navidrome_service.track_file_exists(track_info, ext):
+            return {"exists": True, "file_path": None}
+
+        return {"exists": False, "file_path": None}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error checking track: {str(e)}")
 
