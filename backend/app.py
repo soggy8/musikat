@@ -254,13 +254,6 @@ def download_and_process(
                        )
             return
 
-        dup = get_duplicate_download_reason(
-            track_id, metadata_provider, location, output_format, track_info
-        )
-        if dup:
-            upsert_job(track_id, status="error", message=dup, progress=0)
-            return
-
         upsert_job(track_id, status="processing", message="Preparing download location...", stage="preparing",
                    progress=15)
 
