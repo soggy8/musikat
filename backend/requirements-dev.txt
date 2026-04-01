@@ -1,3 +1,4 @@
 -r requirements.txt
 pytest>=8.0
-httpx>=0.27
+# Starlette TestClient (FastAPI 0.104) is incompatible with httpx 0.28+ (removed `app=` kwarg).
+httpx>=0.24,<0.28
