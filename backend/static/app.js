@@ -261,6 +261,37 @@ function initializeFormatOptions() {
 
 initializeFormatOptions();
 
+function setupMainTabs() {
+    const tabSearch = document.getElementById('tabSearch');
+    const tabSettings = document.getElementById('tabSettings');
+    const panelSearch = document.getElementById('panelSearch');
+    const panelSettings = document.getElementById('panelSettings');
+    if (!tabSearch || !tabSettings || !panelSearch || !panelSettings) return;
+
+    function showSearch() {
+        panelSearch.classList.remove('hidden');
+        panelSettings.classList.add('hidden');
+        tabSearch.classList.add('active');
+        tabSettings.classList.remove('active');
+        tabSearch.setAttribute('aria-selected', 'true');
+        tabSettings.setAttribute('aria-selected', 'false');
+    }
+
+    function showSettings() {
+        panelSearch.classList.add('hidden');
+        panelSettings.classList.remove('hidden');
+        tabSearch.classList.remove('active');
+        tabSettings.classList.add('active');
+        tabSearch.setAttribute('aria-selected', 'false');
+        tabSettings.setAttribute('aria-selected', 'true');
+    }
+
+    tabSearch.addEventListener('click', showSearch);
+    tabSettings.addEventListener('click', showSettings);
+}
+
+setupMainTabs();
+
 // Event listeners
 searchBtn.addEventListener('click', handleSearch);
 searchInput.addEventListener('keypress', (e) => {

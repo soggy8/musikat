@@ -14,70 +14,38 @@
             <p class="subtitle">Search and add songs to your Navidrome server</p>
         </header>
 
-        <div class="search-section">
-            <div class="search-box">
-                <input 
-                    type="text" 
-                    id="searchInput" 
-                    placeholder="Search for songs, artists, albums..."
-                    autocomplete="off"
-                />
-                <button id="searchBtn" class="btn btn-primary">Search</button>
-            </div>
-            <div class="search-options">
-                <div class="search-type-toggle">
-                    <button id="searchTracks" class="toggle-btn active">Tracks</button>
-                    <button id="searchAlbums" class="toggle-btn">Albums</button>
+        <nav class="main-tabs" role="tablist" aria-label="Main">
+            <button type="button" id="tabSearch" class="tab-btn active" role="tab" aria-selected="true" aria-controls="panelSearch">Search</button>
+            <button type="button" id="tabSettings" class="tab-btn" role="tab" aria-selected="false" aria-controls="panelSettings">Settings</button>
+        </nav>
+
+        <div id="panelSearch" class="tab-panel" role="tabpanel" aria-labelledby="tabSearch">
+            <div class="search-section">
+                <div class="search-box">
+                    <input
+                        type="text"
+                        id="searchInput"
+                        placeholder="Search for songs, artists, albums..."
+                        autocomplete="off"
+                    />
+                    <button id="searchBtn" class="btn btn-primary">Search</button>
                 </div>
-                <div class="download-option metadata-provider-row">
-                    <label for="metadataProvider">Catalog:</label>
-                    <select id="metadataProvider" class="download-select" title="Where to search for track metadata">
-                        <option value="deezer">Deezer (no API key)</option>
-                        <option value="spotify">Spotify (requires credentials)</option>
-                    </select>
-                </div>
-                <div class="download-options">
-                    <div class="download-option">
-                        <label for="downloadLocation">Download to:</label>
-                        <select id="downloadLocation" class="download-select" title="Navidrome targets come from NAVIDROME_MUSIC_PATHS on the server">
-                            <option value="local">Loading libraries…</option>
-                        </select>
-                    </div>
-                    <div class="download-option">
-                        <label for="audioFormat">Format:</label>
-                        <select id="audioFormat" class="download-select">
-                            <option value="">Loading...</option>
-                        </select>
-                    </div>
-                    <div class="download-option">
-                        <label for="audioQuality">Quality:</label>
-                        <select id="audioQuality" class="download-select">
-                            <option value="">Loading...</option>
-                        </select>
-                    </div>
-                    <div class="download-option download-option-full">
-                        <label class="checkbox-label" title="If the YouTube download fails, wait and try again automatically (up to 2 extra attempts)">
-                            <input type="checkbox" id="autoRetryDownload" />
-                            Auto-retry on failure (2 extra attempts)
-                        </label>
+                <div class="search-options search-options--compact">
+                    <div class="search-type-toggle">
+                        <button id="searchTracks" class="toggle-btn active">Tracks</button>
+                        <button id="searchAlbums" class="toggle-btn">Albums</button>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <div id="loading" class="loading hidden">
-            <div class="spinner"></div>
-            <p>Searching...</p>
-        </div>
+            <div id="loading" class="loading hidden">
+                <div class="spinner"></div>
+                <p>Searching...</p>
+            </div>
 
-        <div id="error" class="error hidden"></div>
+            <div id="error" class="error hidden"></div>
 
-        <div id="downloadStatus" class="download-status hidden">
-            <h2>Download Queue <span id="queueCount" class="queue-count"></span></h2>
-            <div id="statusContent" class="status-content"></div>
-        </div>
-
-        <div id="results" class="results hidden">
+            <div id="results" class="results hidden">
             <h2>Search Results</h2>
             <div id="tracksList" class="tracks-list"></div>
             <div id="albumsList" class="albums-list hidden"></div>
@@ -123,6 +91,52 @@
             <div id="reverseFinalize" class="reverse-finalize hidden">
                 <p id="reverseSelectedLabel" class="reverse-selected"></p>
                 <button id="reverseDownloadBtn" class="btn btn-primary">Download from YouTube + Apply Metadata</button>
+            </div>
+        </div>
+        </div>
+
+        <div id="downloadStatus" class="download-status hidden">
+            <h2>Download Queue <span id="queueCount" class="queue-count"></span></h2>
+            <div id="statusContent" class="status-content"></div>
+        </div>
+
+        <div id="panelSettings" class="tab-panel hidden" role="tabpanel" aria-labelledby="tabSettings">
+            <div class="settings-section">
+                <h2 class="settings-heading">Settings</h2>
+                <p class="settings-lead">Defaults for catalog search, download location, encoding, and retries.</p>
+                <div class="settings-grid">
+                    <div class="settings-row">
+                        <label for="metadataProvider">Catalog</label>
+                        <select id="metadataProvider" class="download-select" title="Where to search for track metadata">
+                            <option value="deezer">Deezer (no API key)</option>
+                            <option value="spotify">Spotify (requires credentials)</option>
+                        </select>
+                    </div>
+                    <div class="settings-row">
+                        <label for="downloadLocation">Download to</label>
+                        <select id="downloadLocation" class="download-select" title="Navidrome targets come from NAVIDROME_MUSIC_PATHS on the server">
+                            <option value="local">Loading libraries…</option>
+                        </select>
+                    </div>
+                    <div class="settings-row">
+                        <label for="audioFormat">Format</label>
+                        <select id="audioFormat" class="download-select">
+                            <option value="">Loading...</option>
+                        </select>
+                    </div>
+                    <div class="settings-row">
+                        <label for="audioQuality">Quality</label>
+                        <select id="audioQuality" class="download-select">
+                            <option value="">Loading...</option>
+                        </select>
+                    </div>
+                    <div class="settings-row settings-row-checkbox">
+                        <label class="checkbox-label" title="If the YouTube download fails, wait and try again automatically (up to 2 extra attempts)">
+                            <input type="checkbox" id="autoRetryDownload" />
+                            Auto-retry on failure (2 extra attempts)
+                        </label>
+                    </div>
+                </div>
             </div>
         </div>
 

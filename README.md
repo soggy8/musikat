@@ -1,8 +1,8 @@
-# 🎵 Musikat - For Navidrome and local downloads
+# Musikat — Navidrome and local downloads
 
-> **Catalog:** Choose **Deezer** (default, no API key) or **Spotify** (optional credentials) in the web UI or via `DEFAULT_METADATA_PROVIDER` in `.env`.
+Search **Deezer** (default, no API key) or **Spotify** (optional credentials) for tracks and albums, download audio from **YouTube** with **yt-dlp**, apply ID3 tags and artwork, then save to your **browser downloads** or copy into **one or more Navidrome music library folders** on the server.
 
-A modern web application that searches **Deezer** or **Spotify** for tracks and albums, downloads audio from YouTube, then adds files to your Navidrome server or local downloads with metadata and album art.
+Choose the catalog in the web UI (**Catalog**) or set `DEFAULT_METADATA_PROVIDER` in `.env`.
 
 ## Screenshots
 
@@ -14,312 +14,216 @@ A modern web application that searches **Deezer** or **Spotify** for tracks and 
 
 ## Features
 
-- 🎵 Search with **Deezer** (no API key) or **Spotify** (optional)
-- 📥 Automatic download from YouTube using metadata
-- 🏷️ Automatic ID3 tagging with artist, album, album art, and metadata
-- 📂 Direct upload to Navidrome server or local downloads
-- 🎨 Modern, clean web interface with download queue
-- ⚡ Real-time download status updates with progress bars
-- 📊 Visual download queue showing all active downloads
-- 🔄 Choose between local downloads (browser) or Navidrome server upload
+- Search **Deezer** or **Spotify** for tracks and albums
+- Download from YouTube using catalog metadata; optional **YouTube cookies** when YouTube blocks automation
+- ID3 tagging (artist, album, cover art) via the metadata service
+- **Download to:** local (browser) **or** any **configured Navidrome music root** (multiple libraries supported — no need to run separate app instances)
+- Web UI with download queue and status polling
+- Background **library sync** (optional): scan Navidrome folders and align “already downloaded” state with the catalog
 
 ## Architecture
 
-- **Frontend**: Vanilla JavaScript, HTML, CSS
-- **Backend**: Python FastAPI
-- **Deezer API**: Public catalog search (no key)
-- **Spotify Web API**: Optional; requires Client ID + Secret
-- **yt-dlp**: For downloading audio from YouTube
-- **mutagen**: For ID3 tagging
-- **Navidrome**: Music server integration
+| Layer | Technology |
+|--------|------------|
+| Frontend | HTML, CSS, vanilla JavaScript |
+| Backend | Python **FastAPI** |
+| Catalog | **Deezer** (public search) or **Spotify Web API** (optional) |
+| Audio | **yt-dlp** + **FFmpeg** |
+| Tags | **mutagen** |
+| Server library | Files copied under **Navidrome** music path(s); optional Navidrome API for scans |
 
 ## Prerequisites
 
-**For Docker (Recommended):**
-- Docker and Docker Compose
+**Docker:** Docker and Docker Compose  
 
-**For Manual Installation:**
-- Python 3.8+ (Python 3.11 recommended, avoid 3.13 due to compatibility issues)
-- FFmpeg (required by yt-dlp for audio conversion)
-- Navidrome server (optional, for direct server uploads)
+**Manual:** Python 3.8+ (3.11+ recommended), **FFmpeg** on `PATH`, optional Navidrome instance  
 
-**Deezer** needs no API key. **Spotify** requires `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` in `.env` if you select it in the UI.
+**Spotify** in the UI requires `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` in `backend/.env`.
 
 ## Installation
 
-### Option 1: Docker Compose (Recommended - Easiest!)
-
-**Just 3 steps:**
+### Docker Compose (recommended)
 
 ```bash
-# 1. Clone the repo
 git clone https://github.com/soggy8/musikat.git
 cd musikat
 
-# 2. Setup environment (optional)
 cp backend/env.example backend/.env
-# Edit backend/.env: Navidrome path, optional Spotify credentials, DEFAULT_METADATA_PROVIDER
+# Edit backend/.env: Navidrome path(s), optional Spotify, DEFAULT_METADATA_PROVIDER
 
-# 3. Run it!
 docker-compose up -d
 ```
 
-Open http://localhost:8000 in your browser. Done! 🎉
+Open [http://localhost:8000](http://localhost:8000).  
 
-> **Note:** If you want to use Navidrome, edit `docker-compose.yml` to mount your Navidrome music directory. See [DOCKER.md](DOCKER.md) for details.
+Mount your Navidrome music directory in `docker-compose.yml` (see [DOCKER.md](DOCKER.md)).
 
-### Option 2: Manual Installation
+### Manual install
 
-See [SETUP.md](SETUP.md) for detailed setup instructions.
-
-#### 1. Clone the repository
-
-```bash
-git clone <your-repo-url>
-cd musikat
-```
-
-### 2. Install Python dependencies
+See [SETUP.md](SETUP.md).
 
 ```bash
 cd backend
-pip install -r requirements.txt
-```
-
-Or use a virtual environment:
-
-```bash
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate   # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 3. Install FFmpeg
+Install **FFmpeg** (e.g. `sudo apt install ffmpeg` on Debian/Ubuntu, `brew install ffmpeg` on macOS).
 
-**Ubuntu/Debian:**
-```bash
-sudo apt update
-sudo apt install ffmpeg
-```
+## Configuration (`backend/.env`)
 
-**macOS:**
-```bash
-brew install ffmpeg
-```
+Copy `backend/env.example` to `backend/.env` and adjust.
 
-**Windows:**
-Download from [FFmpeg website](https://ffmpeg.org/download.html) and add to PATH
+### Metadata catalog
 
-### 4. Configure environment variables
+| Variable | Description |
+|----------|-------------|
+| `DEFAULT_METADATA_PROVIDER` | `deezer` (default) or `spotify` |
+| `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` | Required if you use Spotify in the UI |
+| `SPOTIFY_REDIRECT_URI` | OAuth redirect (default `http://localhost:8000/callback`) |
 
-Create a `.env` file in the `backend` directory:
+### Navidrome — one or multiple library folders
+
+The app writes files **on disk** under paths the server is allowed to use. Navidrome should use the same folder(s) as its music library.
+
+| Variable | Description |
+|----------|-------------|
+| `NAVIDROME_MUSIC_PATH` | Single absolute path (default in code: `/music` if unset). Used when `NAVIDROME_MUSIC_PATHS` is not set. |
+| `NAVIDROME_MUSIC_PATHS` | Optional. Comma- or newline-separated **absolute** paths. Each appears as a separate **Download to** target. |
+| `NAVIDROME_MUSIC_LABELS` | Optional. Same order as `NAVIDROME_MUSIC_PATHS`; labels shown in the UI (defaults to folder basename). |
+| `NAVIDROME_API_URL` | Navidrome base URL (for scans), e.g. `http://localhost:4533` |
+| `NAVIDROME_USERNAME` / `NAVIDROME_PASSWORD` | Optional; for triggering library scans via API |
+| `NAVIDROME_SYNC_ENABLED` | `true`/`false` — background scan of library paths to sync “already downloaded” hints (default on) |
+| `NAVIDROME_SYNC_INTERVAL_HOURS` | Between sync runs |
+| `NAVIDROME_SYNC_INITIAL_DELAY_SEC` | Delay before first sync after startup |
+
+**Examples**
+
+Single folder (typical Docker mount):
 
 ```env
-# Catalog default: deezer | spotify (UI can override)
-DEFAULT_METADATA_PROVIDER=deezer
-# SPOTIFY_CLIENT_ID=
-# SPOTIFY_CLIENT_SECRET=
-
-# Navidrome Configuration
-NAVIDROME_MUSIC_PATH=/path/to/navidrome/music
-NAVIDROME_API_URL=http://localhost:4533
-NAVIDROME_USERNAME=admin
-NAVIDROME_PASSWORD=password
-
-# Download Configuration
-OUTPUT_FORMAT=mp3
-AUDIO_QUALITY=128
-
-# API Configuration
-API_HOST=0.0.0.0
-API_PORT=8000
-CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+NAVIDROME_MUSIC_PATH=/music
 ```
 
-### 5. Configure Navidrome Path
+Multiple libraries:
 
-Set `NAVIDROME_MUSIC_PATH` to the directory where Navidrome stores its music library. This path must be:
-- Writable by the user running the backend
-- Accessible (local filesystem, NFS mount, or similar)
-
-## Running the Application
-
-### Backend
-
-```bash
-cd backend
-python app.py
+```env
+NAVIDROME_MUSIC_PATHS=/data/music/rock,/data/music/classical
+NAVIDROME_MUSIC_LABELS=Rock,Classical
 ```
 
-Or with uvicorn directly:
+### Downloads and API
+
+| Variable | Description |
+|----------|-------------|
+| `DOWNLOAD_DIR` | Server temp/staging for downloads (default `./downloads`) |
+| `OUTPUT_FORMAT` / `AUDIO_QUALITY` | Default encode settings |
+| `YOUTUBE_COOKIES_PATH` | Netscape cookies file for yt-dlp when YouTube blocks requests |
+| `API_HOST` / `API_PORT` | Bind address |
+| `CORS_ORIGINS` | Comma-separated allowed origins |
+
+## Running
 
 ```bash
 cd backend
 uvicorn app:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-The application (both frontend and API) will be available at `http://localhost:8000`
-
-The frontend is automatically served from the backend, so no separate frontend server is needed.
+Or `python app.py` if your entrypoint wraps uvicorn. The UI is served from the same process (no separate frontend server).
 
 ## Usage
 
-1. Open the web interface in your browser (http://localhost:8000)
-2. Choose download location: "My Downloads Folder" or "Navidrome Server"
-3. Search for a song, artist, or album
-4. Browse the search results
-5. Click "Download" on any track you want
-6. Watch the progress in the download queue at the top
-7. Downloads complete automatically:
-   - **Local downloads**: Files are saved to your browser's Downloads folder
-   - **Navidrome uploads**: Files are added to your Navidrome library (Artist/Album structure)
+1. Open the app in the browser.
+2. Under **Download to**, choose **My Downloads Folder (System)** or a **Navidrome** path (loaded from `GET /api/navidrome/libraries` / your env).
+3. Pick **Catalog** (Deezer or Spotify).
+4. Search tracks or albums, then download. Watch the queue for progress.
+5. **Local:** the browser saves the finished file. **Navidrome:** the server copies the file under the selected music root (Artist/Album layout).
 
-## How It Works
+## How it works
 
-1. **Search**: Uses Deezer or Spotify (your choice) for track/album metadata
-2. **Download**: Uses yt-dlp to search YouTube and download audio
-3. **Tagging**: Applies ID3 tags from the chosen catalog (title, artist, album, cover art)
-4. **Upload**: Copies the file to Navidrome's music directory in organized folders (Artist/Album/)
-5. **Scan**: Optionally triggers Navidrome to scan for new files (if API credentials are configured)
+1. **Search** — Deezer or Spotify returns track/album metadata and IDs.
+2. **Match** — YouTube candidates are chosen (with optional confirmation if confidence is low).
+3. **Download** — yt-dlp fetches audio; FFmpeg converts if needed.
+4. **Tag** — Metadata service writes tags and artwork.
+5. **Deliver** — Either serve to the browser or copy into the chosen Navidrome root; optional Navidrome API notification for scanning.
 
-## API Endpoints
+## API (selected)
 
-- `GET /api/metadata/providers` - List catalog options and whether Spotify is configured
-- `POST /api/search` - Search tracks
-  - Body: `{ "query": "...", "limit": 20, "provider": "deezer" | "spotify" }`
-- `GET /api/track/{track_id}` - Track details (`?provider=deezer|spotify`)
-- `POST /api/download` - Start download
-  - Body: `{ "track_id": "...", "location": "local"|"navidrome", "provider": "deezer"|"spotify", ... }`
+| Method | Path | Notes |
+|--------|------|--------|
+| GET | `/api/health` | Status, `navidrome_path`, `navidrome_libraries`, etc. |
+| GET | `/api/metadata/providers` | Deezer / Spotify and whether Spotify is configured |
+| GET | `/api/navidrome/libraries` | `{ "libraries": [ { "path", "label" }, ... ] }` — roots from env |
+| GET | `/api/formats` | Audio format and quality defaults |
+| POST | `/api/search` | Body: `query`, `provider`, `limit` |
+| POST | `/api/search/albums` | Album search |
+| POST | `/api/download` | Body includes `track_id`, `location` (`local` \| `navidrome`), optional `navidrome_library` (absolute path; must match server config), `provider`, format/quality |
+| POST | `/api/download/album` | Album download; same `location` / `navidrome_library` pattern |
+| POST | `/api/reverse/download` | YouTube → metadata flow |
+| GET | `/api/track/{id}/exists` | Duplicate check; supports `location` and optional `navidrome_library` |
+| GET | `/api/download/status/{track_id}` | Job status |
 
-- `GET /api/download/status/{track_id}` - Get download status
+Full behavior is defined in `backend/app.py`.
 
-- `GET /api/health` - Health check endpoint
-
-## Project Structure
+## Project structure
 
 ```
 musikat/
 ├── backend/
-│   ├── app.py                 # FastAPI main application
-│   ├── config.py              # Configuration management
-│   ├── requirements.txt       # Python dependencies
-│   ├── env.example            # Environment variables template
-│   ├── static                 # Static files
-│   │   ├── app.js             # Frontend JavaScript
-│   │   └── styles.css         # Styling
-│   ├── templates              # Templates
-│   │   └── index.html         # Main HTML page
-│   ├── services/
-│   │   ├── deezer.py          # Deezer catalog (no API key)
-│   │   ├── spotify.py         # Spotify catalog (optional)
-│   │   ├── youtube.py         # YouTube download with yt-dlp
-│   │   ├── metadata.py        # ID3 tagging
-│   │   └── navidrome.py       # Navidrome integration
-│   └── utils/
-│       └── file_handler.py    # File operations
-├── images/                    # Screenshots and images for README
-├── Dockerfile                 # Docker image definition
-├── docker-compose.yml         # Docker Compose configuration
-├── DOCKER.md                  # Docker deployment guide
-├── DEPLOYMENT.md              # Server deployment guide
-├── SETUP.md                   # Manual setup guide
-└── README.md                  # This file
+│   ├── app.py
+│   ├── config.py
+│   ├── requirements.txt
+│   ├── env.example
+│   ├── static/              # app.js, styles.css
+│   ├── templates/           # index.html
+│   ├── services/            # deezer, spotify, youtube, metadata, navidrome
+│   ├── utils/               # file_handler, job_store, navidrome_library_sync
+│   └── tests/
+├── images/
+├── Dockerfile
+├── docker-compose.yml
+├── DOCKER.md
+├── DEPLOYMENT.md
+├── SETUP.md
+└── README.md
 ```
 
 ## Troubleshooting
 
-### Search Returns No Results
+### No search results
 
-- Try the other catalog (Deezer vs Spotify) from the **Catalog** dropdown
-- Use more specific queries (artist + song title)
+- Try the other catalog or a more specific query (artist + title).
 
-### YouTube Download Fails
+### YouTube errors (“Sign in to confirm you’re not a bot”, 403, etc.)
 
-- Ensure FFmpeg is installed and in your PATH
-- Check your internet connection
-- Some videos may be region-locked or unavailable
+- Install FFmpeg and ensure it is on `PATH`.
+- Export **cookies** (Netscape format) and set `YOUTUBE_COOKIES_PATH` (see [yt-dlp FAQ](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp)). Cookies expire; re-export if downloads start failing.
 
-### YouTube Bot Detection ("Sign in to confirm you're not a bot")
+### Navidrome: file not appearing or upload fails
 
-If you see errors like "Sign in to confirm you're not a bot", YouTube is blocking automated requests. You can bypass this by using YouTube cookies:
+- Paths must be **writable** by the process running Musikat.
+- For multiple roots, each path in `NAVIDROME_MUSIC_PATHS` must match what you select in the UI (server validates against the allowlist).
+- Check `GET /api/navidrome/libraries` matches your Docker mounts and permissions.
 
-1. **Export cookies from your browser:**
-   - Install a browser extension like "Get cookies.txt LOCALLY" (Chrome/Firefox)
-   - Visit youtube.com and log in
-   - Export cookies in Netscape format to a file (e.g., `youtube_cookies.txt`)
+### CORS
 
-2. **For Docker:**
-   - Mount the cookies file in `docker-compose.yml`:
-     ```yaml
-     volumes:
-       - /path/to/youtube_cookies.txt:/app/youtube_cookies.txt:ro
-     ```
-   - Set environment variable:
-     ```yaml
-     environment:
-       - YOUTUBE_COOKIES_PATH=/app/youtube_cookies.txt
-     ```
+- Add your site origin to `CORS_ORIGINS` in `.env`.
 
-3. **For manual installation:**
-   - Add to `backend/.env`:
-     ```env
-     YOUTUBE_COOKIES_PATH=/path/to/youtube_cookies.txt
-     ```
+## Legal
 
-**Alternative:** Use yt-dlp to export cookies:
-```bash
-yt-dlp --cookies-from-browser chrome --cookies youtube_cookies.txt "https://www.youtube.com"
-```
-
-**Note:** Cookies expire periodically. Re-export them if downloads start failing again.
-
-### Navidrome Upload Fails
-
-- Verify `NAVIDROME_MUSIC_PATH` is correct and writable
-- Check file permissions on the Navidrome music directory
-- Ensure the path exists
-
-### CORS Errors
-
-- Update `CORS_ORIGINS` in `.env` to include your frontend URL
-- Make sure the frontend is accessing the correct API URL
-
-## Legal Considerations
-
-- This tool is for personal use only
-- Respect copyright laws in your jurisdiction
-- Deezer, Spotify, and YouTube each have their own terms of use
-- YouTube Terms of Service apply
-- Use responsibly and ethically
+Use for **personal** use only. Respect copyright and the terms of Deezer, Spotify, YouTube, and your jurisdiction.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT — see [LICENSE](LICENSE).
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Pull requests are welcome.
 
-## Description
+## More docs
 
-Musikat streamlines adding music to Navidrome: search **Deezer** or **Spotify**, download from **YouTube**, and get ID3 tags and artwork from the catalog you picked.
-
-**Key Benefits:**
-- 🚀 **Fast & Efficient**: Single-click downloads with automatic processing
-- 📊 **Rich Metadata**: ID3 tags from Deezer or Spotify (artist, album, year, artwork)
-- 🗂️ **Auto-Organization**: Files automatically organized in Artist/Album/ structure
-- 🔄 **Auto-Sync**: Automatically triggers Navidrome library scans
-- 💻 **Self-Hosted**: Full control over your data and downloads
-- 🎨 **Modern UI**: Clean, responsive web interface with visual download queue
-- 📥 **Dual Download Options**: Choose between local browser downloads or direct Navidrome server upload
-- 📈 **Progress Tracking**: Real-time progress bars and status updates for all downloads
-- 🐳 **Docker Ready**: One-command deployment with Docker Compose
-
-Perfect for music enthusiasts who want to expand their Navidrome library quickly and efficiently!
-
-## Documentation
-
-- **[DOCKER.md](DOCKER.md)** - Docker deployment guide
-- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Production server deployment guide
-- **[SETUP.md](SETUP.md)** - Manual installation guide
-
+- [DOCKER.md](DOCKER.md) — Docker deployment
+- [DEPLOYMENT.md](DEPLOYMENT.md) — production notes
+- [SETUP.md](SETUP.md) — manual setup

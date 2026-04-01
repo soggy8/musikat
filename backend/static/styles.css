@@ -51,6 +51,95 @@ header h1 {
     font-size: 1.1rem;
 }
 
+.main-tabs {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+
+.tab-btn {
+    padding: 10px 28px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: 1px solid var(--border-color);
+    background: var(--card-bg);
+    color: var(--text-secondary);
+    border-radius: 25px;
+    cursor: pointer;
+    transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.tab-btn:hover {
+    color: var(--text-primary);
+    border-color: var(--primary-color);
+}
+
+.tab-btn.active {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.tab-panel {
+    margin-bottom: 8px;
+}
+
+.settings-section {
+    max-width: 520px;
+    margin: 0 auto;
+    padding: 8px 0 32px;
+}
+
+.settings-heading {
+    font-size: 1.35rem;
+    margin-bottom: 8px;
+    color: var(--text-primary);
+}
+
+.settings-lead {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    margin-bottom: 24px;
+    line-height: 1.5;
+}
+
+.settings-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.settings-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.settings-row > label {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.settings-row .download-select {
+    width: 100%;
+    max-width: 100%;
+}
+
+.settings-row-checkbox {
+    padding-top: 4px;
+}
+
+.settings-row-checkbox .checkbox-label {
+    margin-right: 0;
+}
+
+.search-options--compact {
+    justify-content: center;
+    margin-top: 0;
+}
+
 .search-section {
     margin-bottom: 30px;
 }
